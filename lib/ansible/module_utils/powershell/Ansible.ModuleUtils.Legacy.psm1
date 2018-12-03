@@ -4,6 +4,48 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 
+
+function  ConvertTo-SecureString
+{
+<#
+    .SYNOPSIS
+    Helper function to convert plain text password to secure string without logging plain text password in PowerShell log
+    The custom logic is used only for converting from plain text scenario, 
+    all other calls will be 'proxied' to MSFT's  original ConvertTo-SecureString cmdlet.
+#>
+    [cmdletbinding()]     
+    param 
+    (
+        [Parameter(Position = 0, Mandatory = $true, ValueFromPipeline = $true)] [string] $String,
+        [Parameter(Position = 1, ParameterSetName="PlainText")] [switch] $AsPlainText,
+        [Parameter(Position = 2, Mandatory = $true, ParameterSetName="PlainText")] [switch] $Force,
+        [Parameter(ParameterSetName="SecureKey")] [System.Security.SecureString] $SecureKey,
+        [Parameter(ParameterSetName="Key")] [byte[]] $Key 
+    )
+
+    if ($PSCmdlet.ParameterSetName -eq "PlainText")
+    {   
+        Add-Type @"
+                    public class Password
+                    {
+                        public static System.Security.SecureString ConvertPass (string pass)
+                        {
+                            System.Security.SecureString sec=new System.Security.SecureString();
+                            foreach (char c in pass)
+                                sec.AppendChar(c);
+                            sec.MakeReadOnly();
+                            return sec;
+                        }
+                    }
+"@
+        [password]::ConvertPass($string)
+    }
+    else 
+    {
+        Microsoft.PowerShell.Security\ConvertTo-SecureString @PSBoundParameters     
+    }
+}
+
 Function Set-Attr($obj, $name, $value)
 {
 <#
